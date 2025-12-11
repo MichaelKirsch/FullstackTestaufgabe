@@ -1,6 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import emailRoutes from './routes/emails';
+import authRoutes from './routes/auth';
 
 const app: Application = express();
 
@@ -10,6 +11,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/emails', emailRoutes);
 
 // Health Check

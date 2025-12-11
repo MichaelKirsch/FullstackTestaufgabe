@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import { Email, IEmail } from '../models/Email';
+import { AuthRequest } from '../middleware/auth';
 
 /**
  * Erstellt 1000 Email-Einträge in der Datenbank
  * POST /api/emails/create-batch
  */
-export const createBatchEmails = async (req: Request, res: Response): Promise<void> => {
+export const createBatchEmails = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { ownerId = 'default-owner' } = req.body;
+    const ownerId = req.userId || 'default-owner';
     
     const emails: Partial<IEmail>[] = [];
     const now = new Date();
@@ -51,13 +52,13 @@ export const createBatchEmails = async (req: Request, res: Response): Promise<vo
  * Ruft alle Emails ab
  * GET /api/emails
  */
-export const getAllEmails = async (req: Request, res: Response): Promise<void> => {
+export const getAllEmails = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status, ownerId, limit = 100, skip = 0 } = req.query;
+    const { status, limit = 100, skip = 0 } = req.query;
+    const ownerId = req.userId;
     
-    const query: any = {};
+    const query: any = { ownerId };
     if (status) query.status = status;
-    if (ownerId) query.ownerId = ownerId;
     
     const emails = await Email.find(query)
       .limit(Number(limit))
@@ -116,9 +117,45 @@ export const getEmailById = async (req: Request, res: Response): Promise<void> =
  * Statistiken über Email-Status
  * GET /api/emails/stats
  */
-export const getEmailStats = async (req: Request, res: Response): Promise<void> => {
+/**
+ * Paginierte Email-Liste
+ * GET /api/emails/paginated
+ * 
+ * TODO: Diese Route muss vom Bewerber implementiert werden!
+ * Erwartete Query-Parameter:
+ * - page: Seitennummer (default: 1)
+ * - limit: Anzahl pro Seite (default: 20)
+ * - status: Optionaler Filter nach Status
+ * 
+ * Erwartete Response:
+ * {
+ *   success: true,
+ *   emails: [...],
+ *   pagination: {
+ *     page: 1,
+ *     limit: 20,
+ *     total: 1000,
+ *     totalPages: 50,
+ *     hasNext: true,
+ *     hasPrev: false
+ *   }
+ * }
+ */
+export const getPaginatedEmails = async (req: AuthRequest, res: Response): Promise<void> => {
+  // TODO: Implementiere diese Route mit Pagination
+  // Der Bewerber soll hier zeigen, dass er Pagination versteht
+  res.status(501).json({
+    success: false,
+    message: 'Diese Route muss noch implementiert werden'
+  });
+};
+
+export const getEmailStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const ownerId = req.userId;
+    
     const stats = await Email.aggregate([
+      { $match: { ownerId } },
       {
         $group: {
           _id: '$status',
@@ -127,7 +164,7 @@ export const getEmailStats = async (req: Request, res: Response): Promise<void> 
       }
     ]);
     
-    const total = await Email.countDocuments();
+    const total = await Email.countDocuments({ ownerId });
     
     res.json({
       success: true,
