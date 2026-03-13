@@ -24,7 +24,7 @@
     </div>
 
     <div class="filters">
-      <select v-model="selectedStatus" @change="loadEmails" class="filter-select">
+      <select v-model="selectedStatus" @change="loadEmails(1)" class="filter-select">
         <option value="">Alle Status</option>
         <option value="pending">Pending</option>
         <option value="sent">Sent</option>
@@ -36,18 +36,32 @@
       {{ error }}
     </div>
 
-    <div v-if="loading && emails.length === 0" class="loading">
-      Lädt...
-    </div>
+    <div v-if="loading && emails.length === 0" class="loading">Lädt...</div>
 
     <div v-else>
       <!-- TODO: Implementiere hier die Pagination -->
       <!-- Der Bewerber soll die Pagination-Route /api/emails/paginated verwenden -->
       <!-- und hier eine Pagination-Komponente erstellen -->
-      
+
       <div class="pagination-info">
-        <p>⚠️ Pagination muss noch implementiert werden!</p>
-        <p>Verwende die Route: GET /api/emails/paginated?page=1&limit=20</p>
+        <div>
+          <p>Current Page : {{ pagination.page }} of {{ pagination.totalPages }}</p>
+          <p>Items {{ pagination.limit }} of {{ pagination.total }}</p>
+          <button
+            @click.prevent="peviousPage"
+            :disabled="pagination.page <= 1"
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Previous
+          </button>
+          <button
+            @click.prevent="nextPage"
+            :disabled="pagination.page >= pagination.totalPages"
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       <table class="emails-table">
@@ -79,131 +93,150 @@
         </tbody>
       </table>
 
-      <div v-if="emails.length === 0" class="empty-state">
-        Keine Emails gefunden
-      </div>
+      <div v-if="emails.length === 0" class="empty-state">Keine Emails gefunden</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
-import { emailService, type Email } from '@/services/emailService';
-import { getSocket } from '@/services/socket';
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { emailService, type Email } from '@/services/emailService'
+import { getSocket } from '@/services/socket'
 
-const router = useRouter();
-const authStore = useAuthStore();
+const router = useRouter()
+const authStore = useAuthStore()
 
-const emails = ref<Email[]>([]);
-const loading = ref(false);
-const sending = ref(false);
-const error = ref('');
-const selectedStatus = ref('');
+const emails = ref<Email[]>([])
+const pagination = ref({})
+const loading = ref(false)
+const sending = ref(false)
+const error = ref('')
+const selectedStatus = ref('')
 const stats = ref({
   total: 0,
   pending: 0,
   sent: 0,
-  failed: 0
-});
+  failed: 0,
+})
 
-const loadEmails = async () => {
-  loading.value = true;
-  error.value = '';
+const nextPage = () => {
+  if(pagination.value.page < pagination.value.totalPages){
+pagination.value.page++
+  }
   
+}
+const peviousPage = () => {
+  if (pagination.value.page > 1) {
+    pagination.value.page--
+  }
+}
+watch(
+  () => pagination.value.page,
+  async (newPage, oldPage) => {
+    await loadEmails(newPage)
+  },
+)
+const loadEmails = async (page) => {
+  loading.value = true
+  error.value = ''
+
   try {
     // TODO: Verwende getPaginated statt getAll
     // const response = await emailService.getPaginated(1, 20, selectedStatus.value);
     // emails.value = response.emails;
-    
+
     // Temporär: Verwende getAll bis Pagination implementiert ist
-    const response = await emailService.getAll(100, 0, selectedStatus.value || undefined);
-    emails.value = response.emails;
+    // const response = await emailService.getAll(100, 0, selectedStatus.value || undefined);
+    const response = await emailService.getPaginated(page, 20, selectedStatus.value || undefined)
+
+    emails.value = response.emails
+    pagination.value = response.pagination
   } catch (err: any) {
-    error.value = err.response?.data?.message || 'Fehler beim Laden der Emails';
+    error.value = err.response?.data?.message || 'Fehler beim Laden der Emails'
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 
 const loadStats = async () => {
   try {
-    const response = await emailService.getStats();
+    const response = await emailService.getStats()
     stats.value = {
       total: response.total,
       pending: response.stats.pending || 0,
       sent: response.stats.sent || 0,
-      failed: response.stats.failed || 0
-    };
+      failed: response.stats.failed || 0,
+    }
   } catch (err) {
-    console.error('Fehler beim Laden der Statistiken:', err);
+    console.error('Fehler beim Laden der Statistiken:', err)
   }
-};
+}
 
 const createBatchEmails = async () => {
-  loading.value = true;
-  error.value = '';
-  
+  loading.value = true
+  error.value = ''
+
   try {
-    await emailService.createBatch();
-    await loadEmails();
-    await loadStats();
+    await emailService.createBatch()
+    await loadEmails()
+    await loadStats()
   } catch (err: any) {
-    error.value = err.response?.data?.message || 'Fehler beim Erstellen der Emails';
+    error.value = err.response?.data?.message || 'Fehler beim Erstellen der Emails'
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 
 const sendPendingEmails = async () => {
-  sending.value = true;
-  error.value = '';
-  
+  sending.value = true
+  error.value = ''
+
   try {
-    // TODO: Implementiere den Email-Sending-Endpunkt
-    // Dieser sollte die Rate-Limiting-Logik enthalten
-    error.value = 'Email-Sending-Endpunkt muss noch implementiert werden!';
+    const response = await emailService.postSendEmails()
+    error.value = 'Email-Sending-Endpunkt muss noch implementiert werden!'
   } catch (err: any) {
-    error.value = err.response?.data?.message || 'Fehler beim Senden der Emails';
+    error.value = err.response?.data?.message || 'Fehler beim Senden der Emails'
   } finally {
-    sending.value = false;
+    sending.value = false
   }
-};
+}
 
 const handleLogout = () => {
-  authStore.logout();
-  router.push('/login');
-};
+  authStore.logout()
+  router.push('/login')
+}
 
 const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleString('de-DE');
-};
+  return new Date(dateString).toLocaleString('de-DE')
+}
 
 // Socket.IO Listener für Email-Updates
 const setupSocketListener = () => {
-  const socket = getSocket();
+  const socket = getSocket()
   if (socket) {
     socket.on('email:update', () => {
+      console.log('email socket')
       // Lade Emails neu wenn Update empfangen wird
-      loadEmails();
-      loadStats();
-    });
+      loadEmails()
+      loadStats()
+    })
   }
-};
+}
 
 onMounted(() => {
-  loadEmails();
-  loadStats();
-  setupSocketListener();
-});
+  loadEmails(1)
+  loadStats()
+  setupSocketListener()
+})
 
 onUnmounted(() => {
-  const socket = getSocket();
+  const socket = getSocket()
   if (socket) {
-    socket.off('email:update');
+    socket.off('email:update')
   }
-});
+})
 </script>
 
 <style scoped>
@@ -220,6 +253,17 @@ onUnmounted(() => {
   margin-bottom: 30px;
   padding-bottom: 20px;
   border-bottom: 2px solid #e0e0e0;
+}
+.pagination-info {
+  .btn {
+    @apply font-bold py-2 px-4 rounded;
+  }
+  .btn-blue {
+    @apply bg-blue-500 text-white;
+  }
+  .btn-blue:hover {
+    @apply bg-blue-700;
+  }
 }
 
 h1 {
@@ -393,4 +437,3 @@ h1 {
   color: #999;
 }
 </style>
-

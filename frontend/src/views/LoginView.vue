@@ -35,7 +35,7 @@
         </div>
 
         <button type="submit" :disabled="loading" class="submit-button">
-          {{ loading ? 'Wird verarbeitet...' : (isLogin ? 'Anmelden' : 'Registrieren') }}
+          {{ loading ? 'Wird verarbeitet...' : isLogin ? 'Anmelden' : 'Registrieren' }}
         </button>
       </form>
 
@@ -49,44 +49,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
-const router = useRouter();
-const authStore = useAuthStore();
+const router = useRouter()
+const authStore = useAuthStore()
 
-const isLogin = ref(true);
-const username = ref('');
-const password = ref('');
-const error = ref('');
-const loading = ref(false);
+const isLogin = ref(true)
+const username = ref('')
+const password = ref('')
+const error = ref('')
+const loading = ref(false)
 
 const toggleMode = () => {
-  isLogin.value = !isLogin.value;
-  error.value = '';
-};
+  isLogin.value = !isLogin.value
+  error.value = ''
+}
 
 const handleSubmit = async () => {
-  error.value = '';
-  loading.value = true;
+  error.value = ''
+  loading.value = true
 
   try {
     const result = isLogin.value
       ? await authStore.login(username.value, password.value)
-      : await authStore.register(username.value, password.value);
+      : await authStore.register(username.value, password.value)
 
     if (result.success) {
-      router.push('/emails');
+      router.push('/emails')
     } else {
-      error.value = result.message || 'Ein Fehler ist aufgetreten';
+      error.value = result.message || 'Ein Fehler ist aufgetreten'
     }
   } catch (err) {
-    error.value = 'Ein unerwarteter Fehler ist aufgetreten';
+    error.value = 'Ein unerwarteter Fehler ist aufgetreten'
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 </script>
 
 <style scoped>
@@ -203,4 +203,3 @@ input:focus {
   color: #5568d3;
 }
 </style>
-

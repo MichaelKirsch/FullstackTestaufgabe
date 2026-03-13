@@ -12,7 +12,9 @@ interface SendEmailResult {
   externalId?: string;
   error?: string;
 }
-
+interface Email {
+subject: string; toEmail: string; fromEmail: string; body: string
+}
 // Simuliert Rate-Limiting: Maximal 100 Requests pro Sekunde
 const RATE_LIMIT_PER_SECOND = 100;
 let requestCount = 0;
@@ -24,7 +26,7 @@ let lastResetTime = Date.now();
  * @returns Promise mit Array von externalIds (oder undefined bei Fehler)
  */
 export async function sendEmailsToProvider(
-  emails: Array<{ subject: string; toEmail: string; fromEmail: string; body: string }>
+  emails: Email[]
 ): Promise<(string | undefined)[]> {
   // Rate-Limiting Simulation
   const now = Date.now();

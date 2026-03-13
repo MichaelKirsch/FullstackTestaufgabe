@@ -1,8 +1,13 @@
 import { Request, Response } from 'express';
 import { Email, IEmail } from '../models/Email';
 import { AuthRequest } from '../middleware/auth';
+import { sendEmailsToProvider } from '../services/emailProviderService';
+import { emitEmailUpdate, setupSocketIO } from '../socket/socketHandler';
+import { Server as HttpServer } from 'http';
+import app from '../app';
 
-/**
+  
+  /**
  * Erstellt 1000 Email-Einträge in der Datenbank
  * POST /api/emails/create-batch
  */
@@ -136,20 +141,83 @@ export const getEmailById = async (req: Request, res: Response): Promise<void> =
  *     limit: 20,
  *     total: 1000,
  *     totalPages: 50,
- *     hasNext: true,
- *     hasPrev: false
+ *     hasNext: true, // this is not needed as you can just make it disabled and not sent requests
+ *     hasPrev: false// this is not needed as you can just make it disabled and not sent requests
  *   }
  * }
  */
 export const getPaginatedEmails = async (req: AuthRequest, res: Response): Promise<void> => {
   // TODO: Implementiere diese Route mit Pagination
   // Der Bewerber soll hier zeigen, dass er Pagination versteht
-  res.status(501).json({
-    success: false,
-    message: 'Diese Route muss noch implementiert werden'
-  });
+   try {
+    const { status, limit = 20,page } = req.query;
+    const ownerId = req.userId;
+    const skip = Number(page) === 1 ? 0 : Number(limit) * Number(page); 
+    const query: any = { ownerId };
+    if (status) query.status = status;
+    
+    const emails = await Email.find(query)
+      .limit(Number(limit))
+      .skip(Number(skip))
+      .sort({ createdAt: -1 });
+    
+    const total = await Email.countDocuments(query);
+    const totalPages =  Number(total) > Number(limit) ? Number(total) / Number(limit) : 1
+    const pagination = {
+        page,
+        total,
+        limit,
+        totalPages: Math.round(totalPages)
+      }
+    res.json({
+      success: true,
+      emails,
+      pagination
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Emails:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Abrufen der Emails',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+  
 };
+export const sendMails = async () =>{
+  try{
+const emails = await Email.find({status:{$ne: "sent"}}).limit(100).lean();
+if(emails.length <= 0) {
+  console.log("no emails")
+  return null;
+}
+    const responseOfProvider = await sendEmailsToProvider(emails);
+    const sentEmails = responseOfProvider.map((externalId:string| undefined, index:number) => {
+      const mail = emails[index];
+      const filter = {_id:mail._id}
+      const update = {...mail, status:!!externalId ? "sent": "failed", externalId}
+      return {updateOne: {filter,update}}
+    });
+    await Email.bulkWrite(sentEmails)
+    return sentEmails
+  }
+  catch(e){
+    console.error("e",e);
+  }
+ 
+}
+export const postSendEmails = async(req:AuthRequest, res:Response): Promise<void> => {
+  try{
 
+  const emails = await sendMails()    
+    emitEmailUpdate(app.io,"",[]);
+    res.status(200).json({
+      items:emails
+    })
+  } catch(e){
+    console.error("Es konnten keine Emails gesendet werden", e);
+  }
+}
 export const getEmailStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const ownerId = req.userId;
@@ -183,4 +251,3 @@ export const getEmailStats = async (req: AuthRequest, res: Response): Promise<vo
     });
   }
 };
-

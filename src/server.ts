@@ -3,6 +3,8 @@ import app from './app';
 import { connectDatabase } from './database/connection';
 import { setupSocketIO } from './socket/socketHandler';
 import dotenv from 'dotenv';
+import { sendMails } from './controllers/emailController';
+import cron from 'node-cron';
 
 dotenv.config();
 
@@ -23,11 +25,19 @@ const startServer = async () => {
     // Exportiere io für Verwendung in anderen Modulen
     (app as any).io = io;
     
+
     // Starte Server
     httpServer.listen(PORT, () => {
+ 
       console.log(`🚀 Server läuft auf Port ${PORT}`);
       console.log(`📧 Email API verfügbar unter http://localhost:${PORT}/api/emails`);
       console.log(`🔌 Socket.IO bereit`);
+
+           cron.schedule('* * * * *',  async() => {
+            console.log("CRON EXECUTION")
+    // await sendMails();
+    console.log("CRON EXECUTED")
+});
     });
   } catch (error) {
     console.error('Fehler beim Starten des Servers:', error);
